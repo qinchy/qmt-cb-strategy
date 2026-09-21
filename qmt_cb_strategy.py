@@ -98,9 +98,6 @@ ORDER_COOLDOWN_SECONDS = int(_cfg("ORDER_COOLDOWN_SECONDS", 60))
 # 每隔多少根K线同步一次持仓（建议1分钟周期设5，即5分钟同步一次）
 SYNC_INTERVAL_BARS = int(_cfg("SYNC_INTERVAL_BARS", 5))
 
-# 风控检查间隔（秒），默认60秒即1分钟，与分时周期保持一致
-RISK_CHECK_INTERVAL_SECONDS = int(_cfg("RISK_CHECK_INTERVAL_SECONDS", 60))
-
 # 算法单配置
 USE_ALGO_ORDER = _cfg("USE_ALGO_ORDER", False)
 ALGO_MODE = _cfg("ALGO_MODE", "smart")           # smart=智能算法单，algo=普通算法单
@@ -1040,16 +1037,6 @@ def init(ContextInfo):
         except Exception as e:
             _log(ContextInfo, "error", "注册调仓任务失败 %s: %s" % (t, str(e)))
 
-    # 注册独立风控检查任务：每 RISK_CHECK_INTERVAL_SECONDS 秒执行一次
-    # 这样即使策略运行在日线周期，也能按分钟级别监控止损止盈
-    if RISK_CHECK_INTERVAL_SECONDS > 0:
-        try:
-            period_str = "%dnSecond" % RISK_CHECK_INTERVAL_SECONDS
-            ContextInfo.run_time("risk_check_task", period_str, "09:30:00", "SH")
-            _log(ContextInfo, "info", "注册风控检查任务: 间隔=%s" % period_str)
-        except Exception as e:
-            _log(ContextInfo, "error", "注册风控任务失败: %s" % str(e))
-
     try:
         ContextInfo.run_time("daily_close_task", "1nDay", "14:55:00", "SH")
     except Exception as e:
@@ -1097,25 +1084,24 @@ def handlebar(ContextInfo):
     if ContextInfo._bar_count % SYNC_INTERVAL_BARS == 0 or is_new_day:
         _sync_positions(ContextInfo, positions)
 
-    # handlebar 中补充风控检查；主要风控由 risk_check_task 按分钟执行，
-    # 这里按 SYNC_INTERVAL_BARS 间隔作为双保险
-    if ContextInfo._bar_count % SYNC_INTERVAL_BARS == 0:
-        for code in list(ContextInfo.risk_manager.positions.keys()):
-            if code not in positions:
-                ContextInfo.risk_manager.remove_position(code)
-                continue
+    # 风控检查：策略应运行在 1 分钟周期（分时图），handlebar 每分钟触发一次，
+    # 因此本段逻辑天然按分钟级别监控止损止盈
+    for code in list(ContextInfo.risk_manager.positions.keys()):
+        if code not in positions:
+            ContextInfo.risk_manager.remove_position(code)
+            continue
 
-            rt = get_realtime_data(ContextInfo, code)
-            price = _extract_price(rt)
-            if price <= 0:
-                continue
+        rt = get_realtime_data(ContextInfo, code)
+        price = _extract_price(rt)
+        if price <= 0:
+            continue
 
-            action, reason = ContextInfo.risk_manager.update_price(code, price)
-            if action:
-                _log(ContextInfo, "info", "触发%s %s 当前价=%.3f 原因=%s" % (
-                    "止损" if action == "STOP_LOSS" else "跟踪止盈", code, price, reason))
-                place_order(ContextInfo, code, OP_SELL, positions.get(code, 0), remark=reason)
-                ContextInfo.risk_manager.remove_position(code)
+        action, reason = ContextInfo.risk_manager.update_price(code, price)
+        if action:
+            _log(ContextInfo, "info", "触发%s %s 当前价=%.3f 原因=%s" % (
+                "止损" if action == "STOP_LOSS" else "跟踪止盈", code, price, reason))
+            place_order(ContextInfo, code, OP_SELL, positions.get(code, 0), remark=reason)
+            ContextInfo.risk_manager.remove_position(code)
 
     _save_state(ContextInfo)
 
@@ -1203,65 +1189,6 @@ def rebalance_task(ContextInfo):
     ContextInfo.rebalanced_today.add(now_str)
     _save_state(ContextInfo)
     _log(ContextInfo, "info", "===== 调仓结束 %s =====" % now_str)
-
-
-def risk_check_task(ContextInfo):
-    """
-    独立风控检查任务，按 XML 配置的 RISK_CHECK_INTERVAL_SECONDS 执行。
-    建议设为 60 秒，即每分钟在分时级别监控止损止盈与组合风险。
-    """
-    today = get_today(ContextInfo)
-    is_new_day = ContextInfo.last_trade_date != today
-    if is_new_day:
-        ContextInfo.risk_manager.unlock_if_new_day(today)
-        asset_info = get_account_info(ContextInfo)
-        total_asset = asset_info.get("total_asset", 0)
-        if total_asset > 0:
-            ContextInfo.risk_manager.day_start_asset = total_asset
-            ContextInfo.risk_manager.peak_asset = total_asset
-        ContextInfo.rebalanced_today.clear()
-        ContextInfo.last_trade_date = today
-        _log(ContextInfo, "info", "风控任务识别新交易日: %s" % today)
-
-    asset_info = get_account_info(ContextInfo)
-    total_asset = asset_info.get("total_asset", 0)
-
-    if total_asset > 0 and ContextInfo.initial_asset == 0:
-        ContextInfo.initial_asset = total_asset
-
-    # 组合级风控检查
-    is_safe, risk_reason = ContextInfo.risk_manager.check_portfolio_risk(total_asset, today)
-    if not is_safe:
-        _log(ContextInfo, "warning", "风控任务触发组合风险，原因=%s，执行清仓并锁定" % risk_reason)
-        liquidate_all(ContextInfo, get_positions(ContextInfo), remark=risk_reason)
-        _save_state(ContextInfo)
-        return
-
-    if ContextInfo.risk_manager.is_locked():
-        _log(ContextInfo, "info", "风控任务：风控锁定中，原因=%s，仅监控止损止盈" % ContextInfo.risk_manager.lock_reason)
-
-    # 同步持仓并检查止损止盈
-    positions = get_positions(ContextInfo)
-    _sync_positions(ContextInfo, positions)
-
-    for code in list(ContextInfo.risk_manager.positions.keys()):
-        if code not in positions:
-            ContextInfo.risk_manager.remove_position(code)
-            continue
-
-        rt = get_realtime_data(ContextInfo, code)
-        price = _extract_price(rt)
-        if price <= 0:
-            continue
-
-        action, reason = ContextInfo.risk_manager.update_price(code, price)
-        if action:
-            _log(ContextInfo, "info", "风控任务触发%s %s 当前价=%.3f 原因=%s" % (
-                "止损" if action == "STOP_LOSS" else "跟踪止盈", code, price, reason))
-            place_order(ContextInfo, code, OP_SELL, positions.get(code, 0), remark=reason)
-            ContextInfo.risk_manager.remove_position(code)
-
-    _save_state(ContextInfo)
 
 
 def daily_close_task(ContextInfo):

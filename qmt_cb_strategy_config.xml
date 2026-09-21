@@ -55,7 +55,6 @@
             <item position="" bind="RISK_MAX_DAILY_LOSS_RATIO" value="0.04" note="日最大亏损比例，达到后清仓锁定" name="日最大亏损" type="intput"/>
             <item position="" bind="RISK_MAX_DRAWDOWN_RATIO" value="0.08" note="最大回撤比例，达到后清仓锁定" name="最大回撤" type="intput"/>
             <item position="" bind="RISK_MAX_SINGLE_LOSS_RATIO" value="0.05" note="单票最大亏损比例" name="单票最大亏损" type="intput"/>
-            <item position="" bind="RISK_CHECK_INTERVAL_SECONDS" value="60" note="风控检查间隔（秒），建议60秒即1分钟" name="风控检查间隔" type="intput"/>
 
             <!-- ============ 六、算法单参数 ============ -->
             <item position="" bind="USE_ALGO_ORDER" value="False" note="True=使用算法单拆单，False=普通下单" name="使用算法单" type="checkBox"/>
