@@ -98,17 +98,19 @@ ORDER_COOLDOWN_SECONDS = int(_cfg("ORDER_COOLDOWN_SECONDS", 60))
 # 每隔多少根K线同步一次持仓（建议1分钟周期设5，即5分钟同步一次）
 SYNC_INTERVAL_BARS = int(_cfg("SYNC_INTERVAL_BARS", 5))
 
-# 算法单配置
+# 算法单配置（algo_passorder 的 userOrderParam 参数）
+# 参考迅投文档：algo_passorder(opType, orderType, accountid, orderCode, prType, price, volume,
+#                               [strategyName, quickTrade, userOrderId, userOrderParam], ContextInfo)
 USE_ALGO_ORDER = _cfg("USE_ALGO_ORDER", False)
-ALGO_MODE = _cfg("ALGO_MODE", "smart")           # smart=智能算法单，algo=普通算法单
-ALGO_NAME = _cfg("ALGO_NAME", "VWAP")            # VWAP/TWAP/VP/PINLINE/DMA/FLOAT/SWITCH/ICEBERG/MOC
-ALGO_PRICE_TYPE = int(_cfg("ALGO_PRICE_TYPE", 5))  # 5=最新价，11=限价，12=市价，14=对手价
-ALGO_LIMIT_OVER_RATE = int(_cfg("ALGO_LIMIT_OVER_RATE", 25))
-ALGO_MIN_AMOUNT = float(_cfg("ALGO_MIN_AMOUNT", 0))
-ALGO_TARGET_PRICE = float(_cfg("ALGO_TARGET_PRICE", 1))
-ALGO_START_TIME = _cfg("ALGO_START_TIME", "09:30:00")
-ALGO_END_TIME = _cfg("ALGO_END_TIME", "14:55:00")
-ALGO_LIMIT_CONTROL = int(_cfg("ALGO_LIMIT_CONTROL", 1))
+ALGO_PRICE_TYPE = int(_cfg("ALGO_PRICE_TYPE", 5))        # 报价方式，同 passorder 的 prType，5=最新价
+ALGO_ORDER_TYPE = int(_cfg("ALGO_ORDER_TYPE", 1))        # 0=普通交易，1=算法交易，2=随机量交易
+ALGO_MAX_ORDER_COUNT = int(_cfg("ALGO_MAX_ORDER_COUNT", 20))  # 最大下单次数
+ALGO_SUPER_PRICE_TYPE = int(_cfg("ALGO_SUPER_PRICE_TYPE", 0)) # 单笔超价类型：0=按比例，1=按数值
+ALGO_SUPER_PRICE_RATE = float(_cfg("ALGO_SUPER_PRICE_RATE", 0.0))  # 单笔超价比例[0-1]
+ALGO_SUPER_PRICE_VALUE = float(_cfg("ALGO_SUPER_PRICE_VALUE", 0.0)) # 单笔超价数值
+ALGO_VOLUME_TYPE = int(_cfg("ALGO_VOLUME_TYPE", 4))      # 单笔基准量类型：4=卖1量，5=买1量等
+ALGO_TRIGGER_PRICE = float(_cfg("ALGO_TRIGGER_PRICE", 0.0)) # 触价价格，0=不启用
+ALGO_SUPER_PRICE_ENABLE = int(_cfg("ALGO_SUPER_PRICE_ENABLE", 0)) # 超价启用笔数
 
 # QMT passorder 常量
 OP_BUY = 23
@@ -518,60 +520,57 @@ def get_order_price(ContextInfo, code, operation, default_price=0.0):
     return round(price, 3)
 
 
-def _try_smart_algo_order(ContextInfo, operation, code, volume, order_price, remark):
-    """尝试下智能算法单；若QMT版本不支持则返回None，由上层回退到普通下单"""
-    try:
-        func = ContextInfo.smart_algo_passorder
-    except AttributeError:
-        return None
-    try:
-        return func(
-            operation,           # opType
-            ORDER_TYPE_VOLUME,   # orderType
-            ACCOUNT_ID,          # accountid
-            code,                # orderCode
-            ALGO_PRICE_TYPE,     # prType
-            order_price,         # price
-            volume,              # volume
-            "可转债策略",          # strategyName
-            1,                   # quickTrade
-            remark,              # userOrderId
-            ALGO_NAME,           # smartAlgoType
-            ALGO_LIMIT_OVER_RATE,# limitOverRate
-            ALGO_MIN_AMOUNT,     # minAmount
-            ALGO_TARGET_PRICE,   # targetPrice
-            ALGO_START_TIME,     # startTime
-            ALGO_END_TIME,       # endTime
-            ALGO_LIMIT_CONTROL,  # limitControl
-            ContextInfo          # ContextInfo
-        )
-    except Exception as e:
-        _log(ContextInfo, "warning", "智能算法单失败 %s，将回退普通下单: %s" % (code, str(e)))
-        return None
+def _build_algo_param():
+    """按迅投文档组装 algo_passorder 的 userOrderParam 字典，仅传入非默认值参数"""
+    param = {"OrderType": ALGO_ORDER_TYPE}
+    if ALGO_PRICE_TYPE:
+        param["PriceType"] = ALGO_PRICE_TYPE
+    if ALGO_MAX_ORDER_COUNT > 0:
+        param["MaxOrderCount"] = ALGO_MAX_ORDER_COUNT
+    if ALGO_SUPER_PRICE_TYPE in (0, 1):
+        param["SuperPriceType"] = ALGO_SUPER_PRICE_TYPE
+    if ALGO_SUPER_PRICE_RATE > 0:
+        param["SuperPriceRate"] = ALGO_SUPER_PRICE_RATE
+    if ALGO_SUPER_PRICE_VALUE > 0:
+        param["SuperPriceValue"] = ALGO_SUPER_PRICE_VALUE
+    if ALGO_VOLUME_TYPE >= 0:
+        param["VolumeType"] = ALGO_VOLUME_TYPE
+    if ALGO_TRIGGER_PRICE > 0:
+        param["TriggerPrice"] = ALGO_TRIGGER_PRICE
+    if ALGO_SUPER_PRICE_ENABLE > 0:
+        param["SuperPriceEnable"] = ALGO_SUPER_PRICE_ENABLE
+    return param
 
 
 def _try_algo_order(ContextInfo, operation, code, volume, order_price, remark):
-    """尝试下普通算法单；若QMT版本不支持则返回None，由上层回退到普通下单"""
+    """
+    调用 algo_passorder 下算法单。
+    签名：algo_passorder(opType, orderType, accountid, orderCode, prType, price, volume,
+                         [strategyName, quickTrade, userOrderId, userOrderParam], ContextInfo)
+    若QMT版本不支持或调用失败则返回None，由上层回退到普通下单。
+    """
     try:
         func = ContextInfo.algo_passorder
     except AttributeError:
         return None
     try:
+        user_param = _build_algo_param()
         return func(
-            operation,           # opType
-            ORDER_TYPE_VOLUME,   # orderType
-            ACCOUNT_ID,          # accountid
-            code,                # orderCode
-            ALGO_PRICE_TYPE,     # prType
-            order_price,         # price
-            volume,              # volume
-            "可转债策略",          # strategyName
-            1,                   # quickTrade
-            remark,              # userOrderId
-            ContextInfo          # ContextInfo
+            operation,          # opType
+            ORDER_TYPE_VOLUME,  # orderType
+            ACCOUNT_ID,         # accountid
+            code,               # orderCode
+            ALGO_PRICE_TYPE,    # prType
+            order_price,        # price
+            volume,             # volume
+            "可转债策略",         # strategyName
+            1,                  # quickTrade
+            remark,             # userOrderId
+            user_param,         # userOrderParam
+            ContextInfo         # ContextInfo
         )
     except Exception as e:
-        _log(ContextInfo, "warning", "普通算法单失败 %s，将回退普通下单: %s" % (code, str(e)))
+        _log(ContextInfo, "warning", "算法单失败 %s，将回退普通下单: %s" % (code, str(e)))
         return None
 
 
@@ -596,10 +595,7 @@ def place_order(ContextInfo, code, operation, volume, price=None, remark=""):
 
         order_id = None
         if USE_ALGO_ORDER:
-            if ALGO_MODE == "smart":
-                order_id = _try_smart_algo_order(ContextInfo, operation, code, volume, order_price, remark)
-            else:
-                order_id = _try_algo_order(ContextInfo, operation, code, volume, order_price, remark)
+            order_id = _try_algo_order(ContextInfo, operation, code, volume, order_price, remark)
 
         if not order_id:
             order_id = ContextInfo.passorder(
@@ -607,7 +603,7 @@ def place_order(ContextInfo, code, operation, volume, price=None, remark=""):
                 ORDER_TYPE_VOLUME,# orderType
                 ACCOUNT_ID,       # accountid
                 code,             # orderCode
-                ALGO_PRICE_TYPE if USE_ALGO_ORDER else PRICE_FIX,  # prType
+                PRICE_FIX,        # prType
                 order_price,      # price
                 volume,           # volume
                 "可转债策略",       # strategyName

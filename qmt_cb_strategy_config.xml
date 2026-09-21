@@ -56,17 +56,17 @@
             <item position="" bind="RISK_MAX_DRAWDOWN_RATIO" value="0.08" note="最大回撤比例，达到后清仓锁定" name="最大回撤" type="intput"/>
             <item position="" bind="RISK_MAX_SINGLE_LOSS_RATIO" value="0.05" note="单票最大亏损比例" name="单票最大亏损" type="intput"/>
 
-            <!-- ============ 六、算法单参数 ============ -->
+            <!-- ============ 六、算法单参数（algo_passorder 的 userOrderParam） ============ -->
             <item position="" bind="USE_ALGO_ORDER" value="False" note="True=使用算法单拆单，False=普通下单" name="使用算法单" type="checkBox"/>
-            <item position="" bind="ALGO_MODE" value="smart" note="算法单模式，smart=智能算法单，algo=普通算法单" name="算法单模式" type="combo" list="smart,algo"/>
-            <item position="" bind="ALGO_NAME" value="VWAP" note="智能算法类型，可选VWAP/TWAP/VP/PINLINE/DMA/FLOAT/SWITCH/ICEBERG/MOC" name="算法名称" type="combo" list="VWAP,TWAP,VP,PINLINE,DMA,FLOAT,SWITCH,ICEBERG,MOC"/>
-            <item position="" bind="ALGO_PRICE_TYPE" value="5" note="报价类型，5=最新价，11=限价，12=市价，14=对手价" name="算法单报价类型" type="combo" list="5,11,12,14"/>
-            <item position="" bind="ALGO_LIMIT_OVER_RATE" value="25" note="量比，数据范围0-100" name="算法单量比" type="intput"/>
-            <item position="" bind="ALGO_MIN_AMOUNT" value="0" note="智能算法最小委托金额（元），0=不限制" name="算法单最小金额" type="intput"/>
-            <item position="" bind="ALGO_TARGET_PRICE" value="1" note="智能算法目标价格，仅冰山算法有效，其他可填1" name="算法单目标价" type="intput"/>
-            <item position="" bind="ALGO_START_TIME" value="09:30:00" note="算法单开始时间，HH:MM:SS" name="算法单开始时间" type="intput"/>
-            <item position="" bind="ALGO_END_TIME" value="14:55:00" note="算法单结束时间，HH:MM:SS" name="算法单结束时间" type="intput"/>
-            <item position="" bind="ALGO_LIMIT_CONTROL" value="1" note="涨跌停控制，1=涨停不卖跌停不卖，0=无限制" name="算法单涨跌停控制" type="combo" list="0,1"/>
+            <item position="" bind="ALGO_PRICE_TYPE" value="5" note="报价方式，同passorder的prType：5=最新价，11=限价，12=市价，14=对手价" name="算法单报价类型" type="combo" list="5,11,12,14"/>
+            <item position="" bind="ALGO_ORDER_TYPE" value="1" note="0=普通交易，1=算法交易，2=随机量交易" name="算法单交易类型" type="combo" list="0,1,2"/>
+            <item position="" bind="ALGO_MAX_ORDER_COUNT" value="20" note="最大下单次数，0=不限制" name="算法单最大委托次数" type="intput"/>
+            <item position="" bind="ALGO_SUPER_PRICE_TYPE" value="0" note="单笔超价类型：0=按比例，1=按数值" name="算法单超价类型" type="combo" list="0,1"/>
+            <item position="" bind="ALGO_SUPER_PRICE_RATE" value="0.0" note="单笔超价比例[0-1]，如0.001表示0.1%" name="算法单超价比例" type="intput"/>
+            <item position="" bind="ALGO_SUPER_PRICE_VALUE" value="0.0" note="单笔超价数值（元），>0时生效" name="算法单超价数值" type="intput"/>
+            <item position="" bind="ALGO_VOLUME_TYPE" value="4" note="单笔基准量类型：4=卖1量，5=买1量，具体参考QMT文档" name="算法单基准量类型" type="intput"/>
+            <item position="" bind="ALGO_TRIGGER_PRICE" value="0.0" note="触价价格，>0时启用" name="算法单触价价格" type="intput"/>
+            <item position="" bind="ALGO_SUPER_PRICE_ENABLE" value="0" note="超价启用笔数，0=不启用" name="算法单超价启用笔数" type="intput"/>
         </variable>
     </control>
 </TCStageLayout>

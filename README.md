@@ -22,7 +22,7 @@
 - **K 线周期**：策略需在 **1 分钟周期（分时图）**上运行，`handlebar` 每分钟触发一次，天然实现分钟级风控监控。
 - **调仓时间**：由 XML 中的 `REBALANCE_TIMES` 控制，策略 `init` 时用 `ContextInfo.run_time` 注册，每天在指定时间点执行一次调仓。
 - **风控监控**：止损、跟踪止盈、组合级风控均在 `handlebar` 中执行，因 1 分钟周期而按分钟运行。
-- **算法单**：XML 中 `USE_ALGO_ORDER` 控制是否启用算法单，默认关闭。开启后优先调用 `smart_algo_passorder` / `algo_passorder`，若当前 QMT 版本不支持则自动回退到普通 `passorder`。
+- **算法单**：XML 中 `USE_ALGO_ORDER` 控制是否启用算法单，默认关闭。开启后调用 `algo_passorder`，通过 `userOrderParam` 字典传入拆单参数（`OrderType`、`MaxOrderCount`、`SuperPriceType` 等）；若当前 QMT 版本不支持或调用失败，自动回退到普通 `passorder`。
 
 ## 策略特点
 
