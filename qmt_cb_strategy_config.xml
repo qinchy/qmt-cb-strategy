@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TCStageLayout>
+    <control note="控件">
+        <variable note="控件">
+            <!-- ============ 一、账户与运行参数 ============ -->
+            <item position="" bind="ACCOUNT_ID" value="88888888" note="资金账号" name="资金账号" type="intput"/>
+            <item position="" bind="ACCOUNT_TYPE" value="STOCK" note="账户类型，STOCK=普通账户，CREDIT=信用账户" name="账户类型" type="combo" list="STOCK,CREDIT"/>
+            <item position="" bind="STATE_FILE_PATH" value="D:/QMT/userdata/log/qmt_cb_strategy_state.json" note="状态文件保存路径，支持相对路径或绝对路径" name="状态文件路径" type="intput"/>
+            <item position="" bind="REBALANCE_TIMES" value="09:35,10:30,11:20,14:00,14:45" note="每天调仓时间，多个时间用英文逗号分隔" name="调仓时间" type="intput"/>
+
+            <!-- ============ 二、仓位管理 ============ -->
+            <item position="" bind="POSITION_MAX_HOLDING_COUNT" value="5" note="最大持仓数量" name="最大持仓数量" type="intput"/>
+            <item position="" bind="POSITION_SINGLE_POSITION_RATIO" value="0.18" note="单标仓位上限，如0.18表示18%" name="单标仓位上限" type="intput"/>
+            <item position="" bind="POSITION_TOTAL_POSITION_RATIO" value="0.80" note="总仓位上限，如0.80表示80%" name="总仓位上限" type="intput"/>
+            <item position="" bind="POSITION_MIN_TRADE_AMOUNT" value="1000" note="最小可用现金要求（元）" name="最小交易资金" type="intput"/>
+
+            <!-- ============ 三、可转债筛选 ============ -->
+            <item position="" bind="FILTER_SECTOR" value="沪深可转债" note="QMT板块名，用于获取可转债列表" name="可转债板块名" type="intput"/>
+            <item position="" bind="FILTER_CUSTOM_LIST" value="" note="自定义标的列表，多个代码用英文逗号分隔；为空则使用板块" name="自定义标的列表" type="intput"/>
+            <item position="" bind="FILTER_MAX_COUNT" value="80" note="板块最大取数" name="板块最大取数" type="intput"/>
+            <item position="" bind="FILTER_MIN_PRICE" value="100.0" note="最低价格" name="最低价格" type="intput"/>
+            <item position="" bind="FILTER_MAX_PRICE" value="145.0" note="最高价格，排除高价妖债" name="最高价格" type="intput"/>
+            <item position="" bind="FILTER_MIN_PREMIUM_RATIO" value="-10.0" note="最小转股溢价率(%)" name="最小溢价率" type="intput"/>
+            <item position="" bind="FILTER_MAX_PREMIUM_RATIO" value="35.0" note="最大转股溢价率(%)" name="最大溢价率" type="intput"/>
+            <item position="" bind="FILTER_MIN_REMAINING_SCALE" value="0.5" note="最小剩余规模（亿元）" name="最小剩余规模" type="intput"/>
+            <item position="" bind="FILTER_MAX_REMAINING_SCALE" value="25.0" note="最大剩余规模（亿元）" name="最大剩余规模" type="intput"/>
+            <item position="" bind="FILTER_MIN_DAILY_AMOUNT" value="300.0" note="最小日成交额（万元）" name="最小日成交额" type="intput"/>
+            <item position="" bind="FILTER_EXCLUDE_NEW_DAYS" value="5" note="排除上市前N天" name="排除新股天数" type="intput"/>
+            <item position="" bind="FILTER_EXCLUDE_EXPIRE_DAYS" value="30" note="排除到期前N天" name="排除到期前天数" type="intput"/>
+            <item position="" bind="FILTER_MAX_STRONG_REDEMPTION_PRICE" value="125.0" note="价格超过此值且溢价率高时视为强赎风险" name="强赎风险价格" type="intput"/>
+            <item position="" bind="FILTER_MAX_STRONG_REDEMPTION_PREMIUM" value="15.0" note="强赎风险溢价率阈值(%)" name="强赎风险溢价率" type="intput"/>
+            <item position="" bind="FILTER_MIN_DOUBLE_LOW_RANK" value="40" note="双低得分排名前N%才进入候选池" name="双低排名保留比例" type="intput"/>
+
+            <!-- ============ 四、选股信号 ============ -->
+            <item position="" bind="SIGNAL_LOOKBACK_DAYS" value="60" note="历史数据长度" name="回看天数" type="intput"/>
+            <item position="" bind="SIGNAL_MA_SHORT" value="5" note="短期均线周期" name="短期均线" type="intput"/>
+            <item position="" bind="SIGNAL_MA_LONG" value="20" note="长期均线周期" name="长期均线" type="intput"/>
+            <item position="" bind="SIGNAL_MOMENTUM_DAYS" value="5" note="动量计算天数" name="动量天数" type="intput"/>
+            <item position="" bind="SIGNAL_MOMENTUM_THRESHOLD" value="0.003" note="动量阈值" name="动量阈值" type="intput"/>
+            <item position="" bind="SIGNAL_RSI_PERIOD" value="14" note="RSI计算周期" name="RSI周期" type="intput"/>
+            <item position="" bind="SIGNAL_RSI_LOW" value="35" note="RSI超卖阈值" name="RSI超卖" type="intput"/>
+            <item position="" bind="SIGNAL_RSI_HIGH" value="70" note="RSI超买阈值" name="RSI超买" type="intput"/>
+            <item position="" bind="SIGNAL_VOLUME_BREAKOUT_RATIO" value="1.2" note="成交量突破均线倍数" name="量能突破倍数" type="intput"/>
+            <item position="" bind="SIGNAL_PRICE_PERCENTILE_WINDOW" value="60" note="价格分位计算窗口" name="价格分位窗口" type="intput"/>
+            <item position="" bind="SIGNAL_PRICE_PERCENTILE_LOW" value="0.7" note="价格分位不高于此值，避免追高" name="价格分位上限" type="intput"/>
+
+            <!-- ============ 五、风控参数 ============ -->
+            <item position="" bind="RISK_ATR_PERIOD" value="14" note="ATR计算周期" name="ATR周期" type="intput"/>
+            <item position="" bind="RISK_ATR_STOP_MULTIPLIER" value="2.5" note="ATR止损倍数，可转债波动大建议设2.5" name="ATR止损倍数" type="intput"/>
+            <item position="" bind="RISK_FIXED_STOP_RATIO" value="0.025" note="固定止损比例，如0.025表示2.5%" name="固定止损比例" type="intput"/>
+            <item position="" bind="RISK_MIN_STOP_RATIO" value="0.020" note="ATR止损不得低于此比例，防止ATR过窄被洗出" name="最小止损幅度" type="intput"/>
+            <item position="" bind="RISK_USE_TRAILING_STOP" value="True" note="是否启用跟踪止盈" name="启用跟踪止盈" type="checkBox"/>
+            <item position="" bind="RISK_TRAILING_ATR_MULTIPLIER" value="1.5" note="跟踪止盈回落ATR倍数" name="跟踪止盈ATR倍数" type="intput"/>
+            <item position="" bind="RISK_TRAILING_MIN_PROFIT_RATIO" value="0.020" note="启动跟踪止盈的最小盈利比例" name="跟踪止盈启动盈利" type="intput"/>
+            <item position="" bind="RISK_MAX_DAILY_LOSS_RATIO" value="0.04" note="日最大亏损比例，达到后清仓锁定" name="日最大亏损" type="intput"/>
+            <item position="" bind="RISK_MAX_DRAWDOWN_RATIO" value="0.08" note="最大回撤比例，达到后清仓锁定" name="最大回撤" type="intput"/>
+            <item position="" bind="RISK_MAX_SINGLE_LOSS_RATIO" value="0.05" note="单票最大亏损比例" name="单票最大亏损" type="intput"/>
+
+            <!-- ============ 六、交易参数 ============ -->
+            <item position="" bind="ORDER_COOLDOWN_SECONDS" value="60" note="同一标的同一方向下单冷却时间（秒）" name="下单冷却时间" type="intput"/>
+            <item position="" bind="SYNC_INTERVAL_BARS" value="5" note="每隔多少根K线同步一次持仓" name="持仓同步间隔" type="intput"/>
+        </variable>
+    </control>
+</TCStageLayout>

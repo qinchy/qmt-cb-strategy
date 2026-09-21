@@ -18,74 +18,85 @@ import datetime
 import time
 
 # ============================================================
-# 1. 参数配置（使用前请修改 ACCOUNT_ID）
+# 1. 参数配置
 # ============================================================
+# 以下配置支持两种方式：
+# 1) 直接修改本文件中的默认值；
+# 2) 在国金QMT中导入同名的 XML 配置文件（qmt_cb_strategy_config.xml），
+#    通过右侧参数面板修改，运行时 QMT 会自动覆盖本文件中的默认值。
 
-ACCOUNT_ID = "88888888"          # 资金账号
-ACCOUNT_TYPE = "STOCK"           # 国金QMT中一般传 "STOCK" 或 "CREDIT"
+def _cfg(name, default):
+    """优先读取 QMT XML 配置面板传入的变量，否则使用默认值"""
+    return globals().get(name, default)
+
+
+ACCOUNT_ID = _cfg("ACCOUNT_ID", "88888888")          # 资金账号
+ACCOUNT_TYPE = _cfg("ACCOUNT_TYPE", "STOCK")         # STOCK=普通账户，CREDIT=信用账户
 
 # 状态文件保存路径。QMT内置编辑器运行时 __file__ 可能不存在，建议写死为固定路径
-STATE_FILE_PATH = "D:/QMT/userdata/log/qmt_cb_strategy_state.json"
+STATE_FILE_PATH = _cfg("STATE_FILE_PATH", "D:/QMT/userdata/log/qmt_cb_strategy_state.json")
 
-REBALANCE_TIMES = ["09:35", "10:30", "11:20", "14:00", "14:45"]
+# 调仓时间，多个用英文逗号分隔
+_rebalance_times_str = _cfg("REBALANCE_TIMES", "09:35,10:30,11:20,14:00,14:45")
+REBALANCE_TIMES = [t.strip() for t in _rebalance_times_str.split(",") if t.strip()]
 
 POSITION_CONFIG = {
-    "max_holding_count": 5,       # 最大持仓数量
-    "single_position_ratio": 0.18,  # 单标仓位上限
-    "total_position_ratio": 0.80,   # 总仓位上限
-    "min_trade_amount": 1000,     # 最小可用现金要求
+    "max_holding_count": int(_cfg("POSITION_MAX_HOLDING_COUNT", 5)),
+    "single_position_ratio": float(_cfg("POSITION_SINGLE_POSITION_RATIO", 0.18)),
+    "total_position_ratio": float(_cfg("POSITION_TOTAL_POSITION_RATIO", 0.80)),
+    "min_trade_amount": float(_cfg("POSITION_MIN_TRADE_AMOUNT", 1000)),
 }
 
 FILTER_CONFIG = {
-    "sector": "沪深可转债",        # QMT板块名
-    "custom_list": [],            # 自定义标的列表，为空则使用板块
-    "max_count": 80,              # 板块最大取数
-    "min_price": 100.0,
-    "max_price": 145.0,           # 排除高价妖债
-    "min_premium_ratio": -10.0,   # 最小转股溢价率(%)
-    "max_premium_ratio": 35.0,    # 最大转股溢价率(%)
-    "min_remaining_scale": 0.5,   # 最小剩余规模（亿元）
-    "max_remaining_scale": 25.0,  # 最大剩余规模（亿元）
-    "min_daily_amount": 300.0,    # 最小日成交额（万元）
-    "exclude_new_days": 5,        # 排除上市前N天
-    "exclude_expire_days": 30,    # 排除到期前N天
-    "max_strong_redemption_price": 125.0,  # 价格超过此值且溢价率高时视为强赎风险
-    "max_strong_redemption_premium": 15.0, # 强赎风险溢价率阈值
-    "min_double_low_rank": 40,    # 双低得分排名前N%才进入候选池
+    "sector": _cfg("FILTER_SECTOR", "沪深可转债"),
+    "custom_list": [c.strip() for c in _cfg("FILTER_CUSTOM_LIST", "").split(",") if c.strip()],
+    "max_count": int(_cfg("FILTER_MAX_COUNT", 80)),
+    "min_price": float(_cfg("FILTER_MIN_PRICE", 100.0)),
+    "max_price": float(_cfg("FILTER_MAX_PRICE", 145.0)),
+    "min_premium_ratio": float(_cfg("FILTER_MIN_PREMIUM_RATIO", -10.0)),
+    "max_premium_ratio": float(_cfg("FILTER_MAX_PREMIUM_RATIO", 35.0)),
+    "min_remaining_scale": float(_cfg("FILTER_MIN_REMAINING_SCALE", 0.5)),
+    "max_remaining_scale": float(_cfg("FILTER_MAX_REMAINING_SCALE", 25.0)),
+    "min_daily_amount": float(_cfg("FILTER_MIN_DAILY_AMOUNT", 300.0)),
+    "exclude_new_days": int(_cfg("FILTER_EXCLUDE_NEW_DAYS", 5)),
+    "exclude_expire_days": int(_cfg("FILTER_EXCLUDE_EXPIRE_DAYS", 30)),
+    "max_strong_redemption_price": float(_cfg("FILTER_MAX_STRONG_REDEMPTION_PRICE", 125.0)),
+    "max_strong_redemption_premium": float(_cfg("FILTER_MAX_STRONG_REDEMPTION_PREMIUM", 15.0)),
+    "min_double_low_rank": int(_cfg("FILTER_MIN_DOUBLE_LOW_RANK", 40)),
 }
 
 SIGNAL_CONFIG = {
-    "lookback_days": 60,          # 历史数据长度
-    "ma_short": 5,
-    "ma_long": 20,
-    "momentum_days": 5,
-    "momentum_threshold": 0.003,
-    "rsi_period": 14,
-    "rsi_low": 35,
-    "rsi_high": 70,
-    "volume_breakout_ratio": 1.2, # 成交量突破均线倍数
-    "price_percentile_window": 60,# 价格分位计算窗口
-    "price_percentile_low": 0.7,  # 价格分位不高于70%（避免追高）
+    "lookback_days": int(_cfg("SIGNAL_LOOKBACK_DAYS", 60)),
+    "ma_short": int(_cfg("SIGNAL_MA_SHORT", 5)),
+    "ma_long": int(_cfg("SIGNAL_MA_LONG", 20)),
+    "momentum_days": int(_cfg("SIGNAL_MOMENTUM_DAYS", 5)),
+    "momentum_threshold": float(_cfg("SIGNAL_MOMENTUM_THRESHOLD", 0.003)),
+    "rsi_period": int(_cfg("SIGNAL_RSI_PERIOD", 14)),
+    "rsi_low": float(_cfg("SIGNAL_RSI_LOW", 35)),
+    "rsi_high": float(_cfg("SIGNAL_RSI_HIGH", 70)),
+    "volume_breakout_ratio": float(_cfg("SIGNAL_VOLUME_BREAKOUT_RATIO", 1.2)),
+    "price_percentile_window": int(_cfg("SIGNAL_PRICE_PERCENTILE_WINDOW", 60)),
+    "price_percentile_low": float(_cfg("SIGNAL_PRICE_PERCENTILE_LOW", 0.7)),
 }
 
 RISK_CONFIG = {
-    "atr_period": 14,
-    "atr_stop_multiplier": 2.5,   # ATR倍数（可转债波动大，适当放宽避免洗盘）
-    "fixed_stop_ratio": 0.025,
-    "min_stop_ratio": 0.020,      # ATR止损不得低于2%
-    "use_trailing_stop": True,
-    "trailing_atr_multiplier": 1.5,
-    "trailing_min_profit_ratio": 0.020,
-    "max_daily_loss_ratio": 0.04, # 日最大亏损4%
-    "max_drawdown_ratio": 0.08,   # 最大回撤8%
-    "max_single_loss_ratio": 0.05,# 单票最大亏损5%
+    "atr_period": int(_cfg("RISK_ATR_PERIOD", 14)),
+    "atr_stop_multiplier": float(_cfg("RISK_ATR_STOP_MULTIPLIER", 2.5)),
+    "fixed_stop_ratio": float(_cfg("RISK_FIXED_STOP_RATIO", 0.025)),
+    "min_stop_ratio": float(_cfg("RISK_MIN_STOP_RATIO", 0.020)),
+    "use_trailing_stop": _cfg("RISK_USE_TRAILING_STOP", True),
+    "trailing_atr_multiplier": float(_cfg("RISK_TRAILING_ATR_MULTIPLIER", 1.5)),
+    "trailing_min_profit_ratio": float(_cfg("RISK_TRAILING_MIN_PROFIT_RATIO", 0.020)),
+    "max_daily_loss_ratio": float(_cfg("RISK_MAX_DAILY_LOSS_RATIO", 0.04)),
+    "max_drawdown_ratio": float(_cfg("RISK_MAX_DRAWDOWN_RATIO", 0.08)),
+    "max_single_loss_ratio": float(_cfg("RISK_MAX_SINGLE_LOSS_RATIO", 0.05)),
 }
 
 # 同一标的同一方向下单冷却时间（秒），防止重复下单
-ORDER_COOLDOWN_SECONDS = 60
+ORDER_COOLDOWN_SECONDS = int(_cfg("ORDER_COOLDOWN_SECONDS", 60))
 
 # 每隔多少根K线同步一次持仓（建议1分钟周期设5，即5分钟同步一次）
-SYNC_INTERVAL_BARS = 5
+SYNC_INTERVAL_BARS = int(_cfg("SYNC_INTERVAL_BARS", 5))
 
 # QMT passorder 常量
 OP_BUY = 23
