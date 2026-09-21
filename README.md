@@ -17,6 +17,12 @@
 - **直接修改代码**：编辑 `qmt_cb_strategy.py` 顶部 `_cfg()` 中的默认值。
 - **QMT配置面板**：导入 `qmt_cb_strategy_config.xml` 后，在右侧参数面板修改，运行时QMT会自动覆盖代码中的默认值。
 
+## 调仓与风控运行方式
+
+- **调仓时间**：由 XML 中的 `REBALANCE_TIMES` 控制，策略 `init` 时用 `ContextInfo.run_time` 注册，每天在指定时间点执行一次调仓。
+- **风控监控**：策略注册了独立的 `risk_check_task` 定时任务，按 `RISK_CHECK_INTERVAL_SECONDS`（默认60秒）执行，实现分钟级分时风控。即使 K 线周期不是1分钟，风控仍按分钟运行。
+- **算法单**：XML 中 `USE_ALGO_ORDER` 控制是否启用算法单，默认关闭。开启后优先调用 `smart_algo_passorder` / `algo_passorder`，若当前 QMT 版本不支持则自动回退到普通 `passorder`。
+
 ## 策略特点
 
 ### 风控

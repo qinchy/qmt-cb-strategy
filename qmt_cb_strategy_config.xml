@@ -6,7 +6,7 @@
             <item position="" bind="ACCOUNT_ID" value="88888888" note="资金账号" name="资金账号" type="intput"/>
             <item position="" bind="ACCOUNT_TYPE" value="STOCK" note="账户类型，STOCK=普通账户，CREDIT=信用账户" name="账户类型" type="combo" list="STOCK,CREDIT"/>
             <item position="" bind="STATE_FILE_PATH" value="D:/QMT/userdata/log/qmt_cb_strategy_state.json" note="状态文件保存路径，支持相对路径或绝对路径" name="状态文件路径" type="intput"/>
-            <item position="" bind="REBALANCE_TIMES" value="09:35,10:30,11:20,14:00,14:45" note="每天调仓时间，多个时间用英文逗号分隔" name="调仓时间" type="intput"/>
+            <item position="" bind="REBALANCE_TIMES" value="09:35,10:30,11:20,14:00,14:45" note="每天调仓时间，多个时间用英文逗号分隔，如09:35,10:30" name="调仓时间" type="intput"/>
 
             <!-- ============ 二、仓位管理 ============ -->
             <item position="" bind="POSITION_MAX_HOLDING_COUNT" value="5" note="最大持仓数量" name="最大持仓数量" type="intput"/>
@@ -55,10 +55,19 @@
             <item position="" bind="RISK_MAX_DAILY_LOSS_RATIO" value="0.04" note="日最大亏损比例，达到后清仓锁定" name="日最大亏损" type="intput"/>
             <item position="" bind="RISK_MAX_DRAWDOWN_RATIO" value="0.08" note="最大回撤比例，达到后清仓锁定" name="最大回撤" type="intput"/>
             <item position="" bind="RISK_MAX_SINGLE_LOSS_RATIO" value="0.05" note="单票最大亏损比例" name="单票最大亏损" type="intput"/>
+            <item position="" bind="RISK_CHECK_INTERVAL_SECONDS" value="60" note="风控检查间隔（秒），建议60秒即1分钟" name="风控检查间隔" type="intput"/>
 
-            <!-- ============ 六、交易参数 ============ -->
-            <item position="" bind="ORDER_COOLDOWN_SECONDS" value="60" note="同一标的同一方向下单冷却时间（秒）" name="下单冷却时间" type="intput"/>
-            <item position="" bind="SYNC_INTERVAL_BARS" value="5" note="每隔多少根K线同步一次持仓" name="持仓同步间隔" type="intput"/>
+            <!-- ============ 六、算法单参数 ============ -->
+            <item position="" bind="USE_ALGO_ORDER" value="False" note="True=使用算法单拆单，False=普通下单" name="使用算法单" type="checkBox"/>
+            <item position="" bind="ALGO_MODE" value="smart" note="算法单模式，smart=智能算法单，algo=普通算法单" name="算法单模式" type="combo" list="smart,algo"/>
+            <item position="" bind="ALGO_NAME" value="VWAP" note="智能算法类型，可选VWAP/TWAP/VP/PINLINE/DMA/FLOAT/SWITCH/ICEBERG/MOC" name="算法名称" type="combo" list="VWAP,TWAP,VP,PINLINE,DMA,FLOAT,SWITCH,ICEBERG,MOC"/>
+            <item position="" bind="ALGO_PRICE_TYPE" value="5" note="报价类型，5=最新价，11=限价，12=市价，14=对手价" name="算法单报价类型" type="combo" list="5,11,12,14"/>
+            <item position="" bind="ALGO_LIMIT_OVER_RATE" value="25" note="量比，数据范围0-100" name="算法单量比" type="intput"/>
+            <item position="" bind="ALGO_MIN_AMOUNT" value="0" note="智能算法最小委托金额（元），0=不限制" name="算法单最小金额" type="intput"/>
+            <item position="" bind="ALGO_TARGET_PRICE" value="1" note="智能算法目标价格，仅冰山算法有效，其他可填1" name="算法单目标价" type="intput"/>
+            <item position="" bind="ALGO_START_TIME" value="09:30:00" note="算法单开始时间，HH:MM:SS" name="算法单开始时间" type="intput"/>
+            <item position="" bind="ALGO_END_TIME" value="14:55:00" note="算法单结束时间，HH:MM:SS" name="算法单结束时间" type="intput"/>
+            <item position="" bind="ALGO_LIMIT_CONTROL" value="1" note="涨跌停控制，1=涨停不卖跌停不卖，0=无限制" name="算法单涨跌停控制" type="combo" list="0,1"/>
         </variable>
     </control>
 </TCStageLayout>
