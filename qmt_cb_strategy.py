@@ -62,7 +62,6 @@ FILTER_CONFIG = {
     "exclude_expire_days": int(_cfg("FILTER_EXCLUDE_EXPIRE_DAYS", 30)),
     "max_strong_redemption_price": float(_cfg("FILTER_MAX_STRONG_REDEMPTION_PRICE", 125.0)),
     "max_strong_redemption_premium": float(_cfg("FILTER_MAX_STRONG_REDEMPTION_PREMIUM", 15.0)),
-    "min_double_low_rank": int(_cfg("FILTER_MIN_DOUBLE_LOW_RANK", 40)),
 }
 
 SIGNAL_CONFIG = {
@@ -139,17 +138,6 @@ def sma(values, period):
     if len(values) < period:
         return None
     return _mean(values[-period:])
-
-
-def ema(values, period):
-    """指数移动平均"""
-    if len(values) < period:
-        return None
-    k = 2.0 / (period + 1)
-    result = values[0]
-    for v in values[1:]:
-        result = v * k + result * (1 - k)
-    return result
 
 
 def atr(highs, lows, closes, period=14):
@@ -434,6 +422,20 @@ def _extract_amount(tick_data):
     return 0.0
 
 
+def _extract_volume(tick_data):
+    """提取当日累计成交量，失败返回0"""
+    if tick_data is None:
+        return 0.0
+    if isinstance(tick_data, dict):
+        for f in ["volume", "vol", "totalVolume", "nVolume"]:
+            if f in tick_data:
+                return float(tick_data[f] or 0)
+    for attr in ["volume", "vol", "totalVolume", "nVolume"]:
+        if hasattr(tick_data, attr):
+            return float(getattr(tick_data, attr) or 0)
+    return 0.0
+
+
 def _get_underlying_stock(code, info=None):
     """尝试获取可转债对应的正股代码"""
     if info:
@@ -471,18 +473,35 @@ def get_account_info(ContextInfo):
     return {"total_asset": 0, "available_cash": 0, "market_value": 0}
 
 
-def get_positions(ContextInfo):
-    positions = {}
+def _get_position_data(ContextInfo):
+    """获取QMT原始持仓数据，失败返回空列表"""
     try:
-        data = ContextInfo.get_trade_detail_data(ACCOUNT_ID, ACCOUNT_TYPE, "position")
-        for pos in data:
-            code = getattr(pos, "m_strInstrumentID", "") + "." + getattr(pos, "m_strExchangeID", "")
-            vol = getattr(pos, "m_nVolume", 0)
-            if vol > 0:
-                positions[code] = int(vol)
+        return ContextInfo.get_trade_detail_data(ACCOUNT_ID, ACCOUNT_TYPE, "position")
     except Exception as e:
         _log(ContextInfo, "error", "获取持仓失败: %s" % str(e))
+        return []
+
+
+def get_positions(ContextInfo):
+    positions = {}
+    for pos in _get_position_data(ContextInfo):
+        code = getattr(pos, "m_strInstrumentID", "") + "." + getattr(pos, "m_strExchangeID", "")
+        vol = getattr(pos, "m_nVolume", 0)
+        if vol > 0:
+            positions[code] = int(vol)
     return positions
+
+
+def get_position_cost(ContextInfo, code):
+    """从QMT持仓数据中获取指定标的成本价，找不到返回0"""
+    for pos in _get_position_data(ContextInfo):
+        pos_code = getattr(pos, "m_strInstrumentID", "") + "." + getattr(pos, "m_strExchangeID", "")
+        if pos_code == code:
+            cost = _safe_float(_get_field(pos, [
+                "m_dCostPrice", "m_dOpenPrice", "m_dAvgBuyPrice", "m_dHoldPrice"
+            ]))
+            return cost if cost and cost > 0 else 0.0
+    return 0.0
 
 
 def can_place_order(ContextInfo, code, operation):
@@ -514,9 +533,9 @@ def get_order_price(ContextInfo, code, operation, default_price=0.0):
         return 0.0
 
     if operation == OP_SELL:
-        # 卖出时稍微压低价格（但不超过跌停限制），提升成交概率
-        # A股可转债跌停约 -20%，这里用 0.5% 让利
-        return round(price * 0.995, 3)
+        # 卖出时稍微压低价格提升成交概率，但让利不宜过大
+        # A股可转债跌停约 -20%，这里用 0.2% 让利
+        return round(price * 0.998, 3)
     return round(price, 3)
 
 
@@ -728,9 +747,13 @@ def filter_bonds(ContextInfo, bond_list):
         if amount < FILTER_CONFIG["min_daily_amount"] * 10000:
             continue
 
-        # 成交量过滤：当日不低于20日均量30%（避免流动性枯竭）
+        # 成交量过滤：当日成交量不低于20日均量30%（避免流动性枯竭）
+        # 优先使用实时tick中的当日成交量，盘中 hist[-1] 为昨日数据
+        today_vol = _extract_volume(rt) if rt else 0
+        if today_vol <= 0:
+            today_vol = volumes[-1]
         avg_vol = volume_ma(volumes, 20)
-        if avg_vol and volumes[-1] < avg_vol * 0.3:
+        if avg_vol and today_vol < avg_vol * 0.3:
             continue
 
         # 上市时间过滤
@@ -738,36 +761,33 @@ def filter_bonds(ContextInfo, bond_list):
             continue
 
         info = get_instrument_info(ContextInfo, code)
-        premium = None
-        scale = None
-        if info:
-            premium = _safe_float(_get_field(info, [
-                "conversion_premium", "premium_ratio", "m_dPremiumRate",
-                "m_dConversionPremium", "m_fPremium"
-            ]))
-            scale = _safe_float(_get_field(info, [
-                "remaining_scale", "m_dRemainingScale", "m_fRemainingScale",
-                "balance", "m_dBalance"
-            ]))
+        premium = _safe_float(_get_field(info, [
+            "conversion_premium", "premium_ratio", "m_dPremiumRate",
+            "m_dConversionPremium", "m_fPremium"
+        ])) if info else None
+        scale = _safe_float(_get_field(info, [
+            "remaining_scale", "m_dRemainingScale", "m_fRemainingScale",
+            "balance", "m_dBalance"
+        ])) if info else None
 
-            # 溢价率过滤
-            if premium is not None:
-                if not (FILTER_CONFIG["min_premium_ratio"] <= premium <= FILTER_CONFIG["max_premium_ratio"]):
+        # 溢价率过滤（无数据时跳过该过滤）
+        if premium is not None:
+            if not (FILTER_CONFIG["min_premium_ratio"] <= premium <= FILTER_CONFIG["max_premium_ratio"]):
+                continue
+
+        # 剩余规模过滤
+        if scale is not None:
+            if not (FILTER_CONFIG["min_remaining_scale"] <= scale <= FILTER_CONFIG["max_remaining_scale"]):
+                continue
+
+        # 到期日过滤
+        expire = _get_field(info, ["expire_date", "m_strExpireDate", "maturity_date", "m_strMaturityDate"])
+        if expire:
+            expire_date = _parse_expire_date(expire)
+            if expire_date:
+                today = datetime.datetime.now().date()
+                if (expire_date - today).days < FILTER_CONFIG["exclude_expire_days"]:
                     continue
-
-            # 剩余规模过滤
-            if scale is not None:
-                if not (FILTER_CONFIG["min_remaining_scale"] <= scale <= FILTER_CONFIG["max_remaining_scale"]):
-                    continue
-
-            # 到期日过滤
-            expire = _get_field(info, ["expire_date", "m_strExpireDate", "maturity_date", "m_strMaturityDate"])
-            if expire:
-                expire_date = _parse_expire_date(expire)
-                if expire_date:
-                    today = datetime.datetime.now().date()
-                    if (expire_date - today).days < FILTER_CONFIG["exclude_expire_days"]:
-                        continue
 
         # 强赎风险：价格过高且溢价率不低，排除
         if premium is not None:
@@ -837,9 +857,13 @@ def score_bond(ContextInfo, code, price=None, premium=None, scale=None):
         elif mom < -0.02:
             score -= 15
 
-    # 4. 量能突破
+    # 4. 量能突破（优先使用当日实时成交量）
+    rt = get_realtime_data(ContextInfo, code)
+    today_vol = _extract_volume(rt) if rt else 0
+    if today_vol <= 0:
+        today_vol = volumes[-1]
     avg_vol = volume_ma(volumes, 20)
-    if avg_vol and volumes[-1] > avg_vol * SIGNAL_CONFIG["volume_breakout_ratio"]:
+    if avg_vol and today_vol > avg_vol * SIGNAL_CONFIG["volume_breakout_ratio"]:
         score += 10
 
     # 5. RSI 不在超买区
@@ -884,7 +908,7 @@ def score_bond(ContextInfo, code, price=None, premium=None, scale=None):
 
 
 def select_candidates(ContextInfo, bond_list, top_n=None):
-    """先过滤，再打分排序，返回候选标的"""
+    """先过滤，再打分排序，仅保留分数>0的标的，返回候选标的"""
     filtered = filter_bonds(ContextInfo, bond_list)
     scored = []
     for code, price, premium, scale in filtered:
@@ -892,18 +916,6 @@ def select_candidates(ContextInfo, bond_list, top_n=None):
         if s > 0:
             scored.append((code, s))
     scored.sort(key=lambda x: x[1], reverse=True)
-
-    # 双低排名前N%也保留，确保不全是趋势票
-    if FILTER_CONFIG["min_double_low_rank"] < 100:
-        double_low = [(code, price, premium) for code, price, premium, _ in filtered if premium is not None]
-        double_low.sort(key=lambda x: x[1] + x[2] * 10)
-        keep_top = max(1, int(len(double_low) * FILTER_CONFIG["min_double_low_rank"] / 100.0))
-        top_codes = set(item[0] for item in double_low[:keep_top])
-        # 合并：在打分前列或双低前列
-        scored_codes = set(item[0] for item in scored)
-        extra = [(code, 0.1) for code in top_codes if code not in scored_codes]
-        scored = scored + extra
-        scored.sort(key=lambda x: x[1], reverse=True)
 
     if top_n:
         scored = scored[:top_n]
@@ -915,16 +927,21 @@ def select_candidates(ContextInfo, bond_list, top_n=None):
 # ============================================================
 
 def _sync_positions(ContextInfo, positions):
-    """将实际持仓同步到本地风控器"""
+    """将实际持仓同步到本地风控器；优先用持仓成本价作为入场价"""
     for code, volume in positions.items():
         if code in ContextInfo.risk_manager.positions:
             ContextInfo.risk_manager.positions[code].volume = volume
             continue
 
-        rt = get_realtime_data(ContextInfo, code)
-        price = _extract_price(rt)
-        if price <= 0:
-            continue
+        # 优先取QMT持仓成本价，拿不到再用当前价（策略重启后也能正确止损）
+        cost_price = get_position_cost(ContextInfo, code)
+        if cost_price <= 0:
+            rt = get_realtime_data(ContextInfo, code)
+            cost_price = _extract_price(rt)
+            if cost_price <= 0:
+                _log(ContextInfo, "warning", "同步持仓 %s 无法获取成本价或当前价，跳过" % code)
+                continue
+            _log(ContextInfo, "warning", "持仓 %s 未找到成本价，使用当前价 %.3f 作为止损基准" % (code, cost_price))
 
         hist = get_history_data(ContextInfo, code, "1d", 30)
         atr_val = None
@@ -937,7 +954,7 @@ def _sync_positions(ContextInfo, positions):
             )
 
         now_str = datetime.datetime.now().strftime("%H:%M")
-        ContextInfo.risk_manager.add_position(code, price, now_str, volume, atr_val)
+        ContextInfo.risk_manager.add_position(code, cost_price, now_str, volume, atr_val)
 
 
 def _should_sell_existing(ContextInfo, code):
@@ -970,7 +987,6 @@ def _load_state(ContextInfo):
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 state = json.load(f)
-            ContextInfo.initial_asset = state.get("initial_asset", 0)
             ContextInfo.risk_manager.day_start_asset = state.get("day_start_asset", 0)
             ContextInfo.risk_manager.peak_asset = state.get("peak_asset", 0)
             ContextInfo.risk_manager.locked = state.get("locked", False)
@@ -987,7 +1003,6 @@ def _save_state(ContextInfo):
     path = _state_file_path()
     try:
         state = {
-            "initial_asset": getattr(ContextInfo, "initial_asset", 0),
             "day_start_asset": ContextInfo.risk_manager.day_start_asset,
             "peak_asset": ContextInfo.risk_manager.peak_asset,
             "locked": ContextInfo.risk_manager.locked,
@@ -1018,7 +1033,6 @@ def init(ContextInfo):
     ContextInfo.risk_manager = RiskManager()
     ContextInfo.rebalanced_today = set()
     ContextInfo.last_trade_date = None
-    ContextInfo.initial_asset = 0
     ContextInfo._order_cooldown = {}
     ContextInfo._bar_count = 0
     _load_state(ContextInfo)
@@ -1059,9 +1073,6 @@ def handlebar(ContextInfo):
     asset_info = get_account_info(ContextInfo)
     total_asset = asset_info.get("total_asset", 0)
     available_cash = asset_info.get("available_cash", 0)
-
-    if total_asset > 0 and ContextInfo.initial_asset == 0:
-        ContextInfo.initial_asset = total_asset
 
     # 组合级风控检查
     is_safe, risk_reason = ContextInfo.risk_manager.check_portfolio_risk(total_asset, today)
@@ -1115,8 +1126,6 @@ def rebalance_task(ContextInfo):
     if total_asset <= 0:
         _log(ContextInfo, "warning", "未能获取账户资产，跳过调仓")
         return
-    if ContextInfo.initial_asset == 0:
-        ContextInfo.initial_asset = total_asset
 
     # 风控锁定检查
     if ContextInfo.risk_manager.is_locked():

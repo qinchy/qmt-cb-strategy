@@ -28,10 +28,9 @@
             <item position="" bind="FILTER_EXCLUDE_NEW_DAYS" value="5" note="排除上市前N天" name="排除新股天数" type="intput"/>
             <item position="" bind="FILTER_EXCLUDE_EXPIRE_DAYS" value="30" note="排除到期前N天" name="排除到期前天数" type="intput"/>
             <item position="" bind="FILTER_MAX_STRONG_REDEMPTION_PRICE" value="125.0" note="价格超过此值且溢价率高时视为强赎风险" name="强赎风险价格" type="intput"/>
-            <item position="" bind="FILTER_MAX_STRONG_REDEMPTION_PREMIUM" value="15.0" note="强赎风险溢价率阈值(%)" name="强赎风险溢价率" type="intput"/>
-            <item position="" bind="FILTER_MIN_DOUBLE_LOW_RANK" value="40" note="双低得分排名前N%才进入候选池" name="双低排名保留比例" type="intput"/>
+            <item position="" bind="FILTER_MAX_STRONG_REDEMPTION_PREMIUM" value="15.0" note="强赎风险过滤：溢价率高于此值且价格达标则排除" name="强赎溢价率阈值" type="intput"/>
 
-            <!-- ============ 四、选股信号 ============ -->
+            <!-- ============ 三、选股信号参数 ============ -->
             <item position="" bind="SIGNAL_LOOKBACK_DAYS" value="60" note="历史数据长度" name="回看天数" type="intput"/>
             <item position="" bind="SIGNAL_MA_SHORT" value="5" note="短期均线周期" name="短期均线" type="intput"/>
             <item position="" bind="SIGNAL_MA_LONG" value="20" note="长期均线周期" name="长期均线" type="intput"/>
